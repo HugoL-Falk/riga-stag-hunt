@@ -254,8 +254,16 @@ app.post('/api/unclaim', (req, res) => {
   const claim = db.prepare('SELECT * FROM claims WHERE team_id=? AND challenge_id=? AND is_bonus=?').get(team_id, challenge_id, isBonus);
   if (!claim) return res.status(404).json({ error: 'Claim not found' });
   // Delete the file if present
-  if (claim.photo_url) { try { fs.unlinkSync(path.join(__dirname, '..', claim.photo_url)); } catch {} }
+  if (claim.photo_url) { try { fs.unlinkSync(path.join(UPLOADS_DIR, claim.photo_url.replace('/uploads/',''))); } catch {} }
   db.prepare('DELETE FROM claims WHERE team_id=? AND challenge_id=? AND is_bonus=?').run(team_id, challenge_id, isBonus);
+  // Post system message
+  const team = db.prepare('SELECT * FROM teams WHERE id=?').get(team_id);
+  const baseId = challenge_id.split('_bonus_')[0];
+  const ch = CHALLENGES.find(c => String(c.id) === baseId);
+  if (team && ch) {
+    const bonusSuffix = isBonus ? ' (bonus)' : '';
+    postSystemMessage(`↩ ${team.name} unclaimed "${ch.title}"${bonusSuffix} — it's up for grabs again!`);
+  }
   broadcastState();
   res.json({ success: true });
 });

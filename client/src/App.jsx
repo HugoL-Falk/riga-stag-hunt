@@ -40,16 +40,16 @@ function useCountdown(huntStatus, huntStartTime, countdownMinutes) {
 
 function fmtTime(s) { if (s === null) return ''; return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}` }
 
-function HuntStartOverlay({ onDone }) {
+function HuntStartToast({ onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t) }, [onDone])
   return (
-    <div className="hunt-start-overlay">
-      <div className="hunt-start-content">
-        <div className="gun-row"><span className="gun left">🔫</span><span className="gun right">🔫</span></div>
-        <div className="hunt-start-text">HUNT IS ON!</div>
-        <div className="hunt-start-sub">Good luck — go go go!</div>
-        <div className="bang-row"><span className="bang">BANG!</span><span className="bang b2">BANG!</span></div>
+    <div className="hunt-start-toast">
+      <span style={{fontSize:28}}>🔫</span>
+      <div className="hunt-toast-body">
+        <div className="hunt-toast-title">HUNT IS ON!</div>
+        <div className="hunt-toast-sub">Go go go! 🏃</div>
       </div>
+      <span style={{fontSize:28,transform:'scaleX(-1)',display:'inline-block'}}>🔫</span>
     </div>
   )
 }
@@ -133,17 +133,19 @@ export default function App() {
   const { huntStatus, resultsEnabled } = state
   const myScore = state.scores[team.id] || 0
 
+  const showHuntTab = huntStatus === 'active' || (huntStatus === 'finished' && resultsEnabled)
   const navTabs = [
     { id:'chat', label:'Chat' },
     { id:'map', label:'Map' },
-    ...(huntStatus==='active' ? [{ id:'hunt', label:'Challenges' },{ id:'gallery', label:'Gallery' }] : []),
+    ...(showHuntTab ? [{ id:'hunt', label:'Challenges' }] : []),
+    ...(huntStatus==='active' ? [{ id:'gallery', label:'Gallery' }] : []),
     ...(huntStatus==='finished'&&resultsEnabled ? [{ id:'results', label:'🏆 Results' }] : []),
   ]
   const validView = navTabs.find(t => t.id === view) ? view : 'chat'
 
   return (
     <div className="app">
-      {showHuntStart && <HuntStartOverlay onDone={() => setShowHuntStart(false)} />}
+      {showHuntStart && <HuntStartToast onDone={() => setShowHuntStart(false)} />}
 
       <div className="sticky-top">
         <header className="header">
@@ -186,10 +188,15 @@ export default function App() {
       <div className="content-area">
         {validView==='chat' && <ChatView messages={messages} state={state} team={team} player={player} huntStatus={huntStatus} />}
         {validView==='map' && <MapView state={state} locations={locations} identity={{...identity,userId}} onChallengeClick={handleMapChallengeClick} focusChallengeId={mapFocusId} clearFocus={()=>setMapFocusId(null)} showPins={huntStatus==='active'} />}
-        {validView==='hunt' && (huntStatus==='active'
-          ? <HuntView state={state} team={team} filter={filter} setFilter={setFilter} highlightChallenge={highlightChallenge} setHighlightChallenge={setHighlightChallenge} challengeRefs={challengeRefs} onGoToMap={goToMap} onToast={showToast}/>
-          : <PlaceholderScreen huntStatus={huntStatus}/>)}
-        {validView==='gallery' && huntStatus==='active' && <GalleryView state={state}/>}
+        {validView==='hunt' && huntStatus==='active' && (
+          <HuntView state={state} team={team} filter={filter} setFilter={setFilter} highlightChallenge={highlightChallenge} setHighlightChallenge={setHighlightChallenge} challengeRefs={challengeRefs} onGoToMap={goToMap} onToast={showToast} locked={false}/>
+        )}
+        {validView==='hunt' && huntStatus==='finished' && resultsEnabled && (
+          <HuntView state={state} team={team} filter={filter} setFilter={setFilter} highlightChallenge={highlightChallenge} setHighlightChallenge={setHighlightChallenge} challengeRefs={challengeRefs} onGoToMap={goToMap} onToast={showToast} locked={true}/>
+        )}
+        {validView==='hunt' && huntStatus==='waiting' && <PlaceholderScreen huntStatus={huntStatus}/>}
+        {validView==='hunt' && huntStatus==='finished' && !resultsEnabled && <PlaceholderScreen huntStatus={huntStatus}/>}
+        {validView==='gallery' && (huntStatus==='active'||huntStatus==='finished') && <GalleryView state={state}/>}
         {validView==='results' && <ResultsView state={state}/>}
       </div>
 
@@ -246,7 +253,7 @@ function JoinScreen({ state, onJoin }) {
       <div className="join-card">
         <div style={{fontSize:40,textAlign:'center'}}>🍺</div>
         <h1 className="join-title">Riga Stag Hunt</h1>
-        <p className="join-sub">13 lads · Old Town · 1 hour</p>
+        <p className="join-sub">Welcome to a challenge hunt that will take you around Riga.</p>
         <input className="field" placeholder="Your name" value={name} onChange={e=>{setName(e.target.value);setErr('')}}/>
         {step==='choose'&&state.teams.length>0&&(
           <>
@@ -278,7 +285,7 @@ function JoinScreen({ state, onJoin }) {
   )
 }
 
-function HuntView({ state, team, filter, setFilter, highlightChallenge, setHighlightChallenge, challengeRefs, onGoToMap, onToast }) {
+function HuntView({ state, team, filter, setFilter, highlightChallenge, setHighlightChallenge, challengeRefs, onGoToMap, onToast, locked=false }) {
   const cats = ['all','landmark','quick','medium','hard']
   const filtered = filter==='all'?state.challenges:state.challenges.filter(c=>c.category===filter)
   const groups = {}
@@ -293,7 +300,7 @@ function HuntView({ state, team, filter, setFilter, highlightChallenge, setHighl
         {Object.entries(groups).map(([cat,challenges])=>(
           <div key={cat}>
             <div className="cat-label">{CAT_LABELS[cat]||cat}</div>
-            {challenges.map(ch=><ChallengeCard key={ch.id} ch={ch} state={state} team={team} highlighted={highlightChallenge===ch.id} cardRef={el=>{if(el)challengeRefs.current[ch.id]=el}} onGoToMap={onGoToMap} onToast={onToast}/>)}
+            {challenges.map(ch=><ChallengeCard key={ch.id} ch={ch} state={state} team={team} highlighted={highlightChallenge===ch.id} cardRef={el=>{if(el)challengeRefs.current[ch.id]=el}} onGoToMap={onGoToMap} onToast={onToast} locked={locked}/>)}
           </div>
         ))}
       </div>
@@ -301,7 +308,7 @@ function HuntView({ state, team, filter, setFilter, highlightChallenge, setHighl
   )
 }
 
-function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToast }) {
+function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToast, locked=false }) {
   const [expanded, setExpanded] = useState(false)
   const [uploading, setUploading] = useState(null)
   const [answer, setAnswer] = useState('')
@@ -364,7 +371,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
   return (
     <>
       {lightbox!==null&&<Lightbox items={buildLbItems()} startIndex={lightbox} onClose={()=>setLightbox(null)}/>}
-      <div ref={cardRef} className={`cc ${mainClaim?'fully-done':''} ${highlighted?'highlighted':''}`}>
+      <div ref={cardRef} className={`cc ${mainClaim?'fully-done':''} ${highlighted?'highlighted':''} ${locked?'locked':''}`}>
         <div className="cc-top" onClick={()=>setExpanded(e=>!e)}>
           <div className={`pts-badge p${Math.min(ch.pts,3)}`}>{ch.pts}pt{ch.pts>1?'s':''}</div>
           <div className="cc-body">
@@ -418,7 +425,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
                       setAnswerState('checking')
                       const correct = await doValidate(String(ch.id),false,answer)
                       setAnswerState(correct?'correct':'wrong')
-                      if(correct&&!ch.requiresPhoto){await handleClaim(null,String(ch.id),false,answer,true)}
+                      // Never auto-claim main challenges — always require photo too
                     }}>
                     {answerState==='checking'?'…':answerState==='correct'?'✓':answerState==='wrong'?'✗':'✓?'}
                   </button>
@@ -428,7 +435,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
               </div>
             )}
 
-            {!mainClaim&&(
+            {!mainClaim&&!locked&&(
               <div className="claim-area">
                 {ch.answerField?.correct?(
                   answerState==='correct'?(
@@ -450,7 +457,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
                 )}
               </div>
             )}
-            {myMainClaim&&<button className="unclaim-btn" onClick={()=>handleUnclaim(String(ch.id),false)}>↩ Unclaim (wrong photo?)</button>}
+            {myMainClaim&&!locked&&<button className="unclaim-btn" onClick={()=>handleUnclaim(String(ch.id),false)}>↩ Unclaim (wrong photo?)</button>}
 
             {ch.bonus?.length>0&&(
               <div className="bonus-section">
@@ -492,9 +499,9 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
                           <div className="bonus-claimed" style={{color:bt?.color}}>
                             ✓ {bt?.name}{bc.answer_text&&<span style={{color:'#666',fontWeight:400}}> {bc.answer_text}</span>}
                             {bc.photo_url&&<MediaThumb url={bc.photo_url} size={32} onClick={()=>bIdx>=0&&setLightbox(bIdx)}/>}
-                            {myBonus&&<button className="unclaim-btn sm" onClick={()=>handleUnclaim(bonusClaimId,true)}>↩</button>}
+                            {myBonus&&!locked&&<button className="unclaim-btn sm" onClick={()=>handleUnclaim(bonusClaimId,true)}>↩</button>}
                           </div>
-                        ):!b.answerOnly&&(!b.answerField?.correct||bAs==='correct')&&(
+                        ):!b.answerOnly&&!locked&&(!b.answerField?.correct||bAs==='correct')&&(
                           <>
                             <input ref={el=>bonusFileRefs.current[b.id]=el} type="file" accept={b.video?'image/*,video/*':'image/*'} style={{display:'none'}} onChange={e=>e.target.files[0]&&handleClaim(e.target.files[0],bonusClaimId,true,bonusAnswers[b.id])}/>
                             <button className="claim-btn small" onClick={()=>bonusFileRefs.current[b.id]?.click()} disabled={uploading===bonusClaimId}>
