@@ -50,16 +50,20 @@ db.exec(`
     team_color TEXT NOT NULL,
     sender_name TEXT NOT NULL,
     text TEXT NOT NULL,
+    image_url TEXT,
     sent_at INTEGER DEFAULT (strftime('%s','now'))
   );
 `);
 
-// Add answer columns if upgrading from old DB
 try { db.exec('ALTER TABLE claims ADD COLUMN answer_text TEXT'); } catch {}
 try { db.exec('ALTER TABLE claims ADD COLUMN answer_correct INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN image_url TEXT'); } catch {}
 
 const TEAM_COLORS = ['#378ADD','#1D9E75','#D85A30','#7F77DD','#E2A020','#A32D2D'];
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '2024';
+const RESET_CODE = process.env.RESET_CODE || 'reset';
 
+// Multer for challenge media (large files)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
@@ -69,10 +73,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for videos
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = /jpeg|jpg|png|gif|webp|mp4|mov|quicktime|video/.test(file.mimetype);
     cb(null, ok);
+  }
+});
+
+// Multer for chat images (images only, compressed on client)
+const chatUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max after client compression
+  fileFilter: (req, file, cb) => {
+    const ok = /jpeg|jpg|png|gif|webp/.test(file.mimetype);
+    cb(null, ok ? true : false);
+    if (!ok) cb(new Error('Images only in chat'));
   }
 });
 
@@ -80,16 +95,13 @@ function getState() {
   const teams = db.prepare('SELECT * FROM teams ORDER BY created_at ASC').all();
   const claims = db.prepare('SELECT * FROM claims ORDER BY claimed_at ASC').all();
   const messages = db.prepare('SELECT * FROM messages ORDER BY sent_at ASC LIMIT 300').all();
-
   const scores = {};
   teams.forEach(t => { scores[t.id] = 0; });
-
   claims.forEach(c => {
     if (!(c.team_id in scores)) scores[c.team_id] = 0;
     const baseId = c.challenge_id.split('_bonus_')[0];
     const ch = CHALLENGES.find(ch => String(ch.id) === baseId);
     if (!ch) return;
-
     if (c.is_bonus) {
       const bonusId = c.challenge_id.split('_bonus_')[1];
       const bonus = ch.bonus.find(b => b.id === bonusId);
@@ -98,64 +110,88 @@ function getState() {
       scores[c.team_id] += ch.pts;
     }
   });
-
   return { teams, claims, messages, scores, challenges: CHALLENGES };
 }
 
 function broadcast(event, data) { io.emit(event, data); }
 
+function checkAnswer(answerText, correctAnswer) {
+  if (!correctAnswer) return true; // No correct answer defined = always passes (just logged)
+  return answerText.toLowerCase().trim().includes(correctAnswer.toLowerCase().trim());
+}
+
 app.get('/api/state', (req, res) => res.json(getState()));
 
-app.post('/api/teams', (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Team name required' });
-  const existing = db.prepare('SELECT * FROM teams').all();
-  if (existing.length >= 6) return res.status(400).json({ error: 'Max 6 teams reached' });
-  const usedColors = existing.map(t => t.color);
-  const color = TEAM_COLORS.find(c => !usedColors.includes(c)) || TEAM_COLORS[existing.length % TEAM_COLORS.length];
-  const id = uuidv4();
-  db.prepare('INSERT INTO teams (id, name, color) VALUES (?, ?, ?)').run(id, name.trim(), color);
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(id);
-  broadcast('state_update', getState());
-  res.json(team);
+// Validate answer before claiming (called by client on checkmark press)
+app.post('/api/validate-answer', (req, res) => {
+  const { challenge_id, is_bonus, answer_text } = req.body;
+  if (!answer_text || !challenge_id) return res.status(400).json({ error: 'Missing fields' });
+
+  const baseId = challenge_id.split('_bonus_')[0];
+  const ch = CHALLENGES.find(c => String(c.id) === baseId);
+  if (!ch) return res.status(404).json({ error: 'Challenge not found' });
+
+  let answerField = null;
+  if (is_bonus) {
+    const bonusId = challenge_id.split('_bonus_')[1];
+    const bonus = ch.bonus.find(b => b.id === bonusId);
+    answerField = bonus?.answerField;
+  } else {
+    answerField = ch.answerField;
+  }
+
+  if (!answerField?.correct) {
+    return res.json({ correct: true, message: 'Logged!' }); // No validation needed
+  }
+
+  const correct = checkAnswer(answer_text, answerField.correct);
+  return res.json({
+    correct,
+    message: correct ? 'Correct! Now upload your photo.' : `Not quite right. Hint: think about the ${answerField.correct.slice(0, 3)}...`
+  });
 });
 
+// Claim with optional media (answerOnly claims have no file)
 app.post('/api/claim', upload.single('media'), (req, res) => {
-  const { team_id, challenge_id, is_bonus, answer_text } = req.body;
+  const { team_id, challenge_id, is_bonus, answer_text, answer_only } = req.body;
   if (!team_id || !challenge_id) return res.status(400).json({ error: 'Missing fields' });
-  if (!req.file) return res.status(400).json({ error: 'Photo or video proof required to claim' });
 
-  const media_url = `/uploads/${req.file.filename}`;
+  const isAnswerOnly = answer_only === 'true';
+  if (!isAnswerOnly && !req.file) return res.status(400).json({ error: 'Photo or video proof required to claim' });
+
+  // Check if already claimed by another team (first-wins)
+  const existing = db.prepare('SELECT * FROM claims WHERE challenge_id = ? AND is_bonus = ?')
+    .all(challenge_id, is_bonus === 'true' ? 1 : 0);
+  if (existing.length > 0) {
+    const claimingTeam = db.prepare('SELECT name FROM teams WHERE id = ?').get(existing[0].team_id);
+    return res.status(409).json({ error: `Already claimed by ${claimingTeam?.name || 'another team'}!` });
+  }
+
+  const media_url = req.file ? `/uploads/${req.file.filename}` : null;
   const id = uuidv4();
-  const isBonus = is_bonus === 'true' || is_bonus === true ? 1 : 0;
+  const isBonus = is_bonus === 'true' ? 1 : 0;
 
-  // Check if answer is correct for trivia fields
+  // Determine if answer is correct
+  const baseId = challenge_id.split('_bonus_')[0];
+  const ch = CHALLENGES.find(c => String(c.id) === baseId);
   let answer_correct = 0;
-  if (answer_text) {
-    const baseId = challenge_id.split('_bonus_')[0];
-    const ch = CHALLENGES.find(c => String(c.id) === baseId);
-    if (ch) {
-      let answerField = null;
-      if (isBonus && ch.bonus) {
-        const bonusId = challenge_id.split('_bonus_')[1];
-        const bonus = ch.bonus.find(b => b.id === bonusId);
-        answerField = bonus?.answerField;
-      } else {
-        answerField = ch.answerField;
-      }
-      if (answerField?.correct) {
-        answer_correct = answer_text.toLowerCase().includes(answerField.correct.toLowerCase()) ? 1 : 0;
-      } else {
-        answer_correct = 1; // No correct answer defined = just logging it
-      }
+  if (answer_text && ch) {
+    let answerField = null;
+    if (isBonus && ch.bonus) {
+      const bonusId = challenge_id.split('_bonus_')[1];
+      const bonus = ch.bonus.find(b => b.id === bonusId);
+      answerField = bonus?.answerField;
+    } else {
+      answerField = ch.answerField;
     }
+    answer_correct = answerField?.correct ? (checkAnswer(answer_text, answerField.correct) ? 1 : 0) : 1;
   }
 
   try {
     db.prepare('INSERT INTO claims (id, team_id, challenge_id, is_bonus, photo_url, answer_text, answer_correct) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, team_id, challenge_id, isBonus, media_url, answer_text || null, answer_correct);
   } catch (e) {
-    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Already claimed by this team' });
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Your team already claimed this!' });
     throw e;
   }
 
@@ -163,12 +199,41 @@ app.post('/api/claim', upload.single('media'), (req, res) => {
   res.json({ success: true, media_url, answer_correct });
 });
 
-app.post('/api/messages', (req, res) => {
-  const { team_id, team_name, team_color, sender_name, text } = req.body;
-  if (!text || !text.trim()) return res.status(400).json({ error: 'Empty message' });
+// Admin: force-claim a challenge for a team
+app.post('/api/admin/force-claim', (req, res) => {
+  const { password, team_id, challenge_id, is_bonus } = req.body;
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: 'Wrong password' });
+
+  const isBonus = is_bonus ? 1 : 0;
+  // Remove any existing claim for this challenge (override)
+  db.prepare('DELETE FROM claims WHERE challenge_id = ? AND is_bonus = ?').run(challenge_id, isBonus);
+
   const id = uuidv4();
-  db.prepare('INSERT INTO messages (id, team_id, team_name, team_color, sender_name, text) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, team_id, team_name, team_color, sender_name, text.trim().slice(0, 500));
+  db.prepare('INSERT INTO claims (id, team_id, challenge_id, is_bonus, answer_correct) VALUES (?, ?, ?, ?, 1)')
+    .run(id, team_id, challenge_id, isBonus);
+
+  broadcast('state_update', getState());
+  res.json({ success: true });
+});
+
+// Admin: remove a claim
+app.post('/api/admin/remove-claim', (req, res) => {
+  const { password, challenge_id, is_bonus } = req.body;
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: 'Wrong password' });
+  db.prepare('DELETE FROM claims WHERE challenge_id = ? AND is_bonus = ?').run(challenge_id, is_bonus ? 1 : 0);
+  broadcast('state_update', getState());
+  res.json({ success: true });
+});
+
+// Chat message with optional image
+app.post('/api/messages', chatUpload.single('image'), (req, res) => {
+  const { team_id, team_name, team_color, sender_name, text } = req.body;
+  if (!text?.trim() && !req.file) return res.status(400).json({ error: 'Empty message' });
+  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+  const id = uuidv4();
+  const msgText = (text || '').trim().slice(0, 500) || '📷';
+  db.prepare('INSERT INTO messages (id, team_id, team_name, team_color, sender_name, text, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, team_id, team_name, team_color, sender_name, msgText, image_url);
   const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(id);
   broadcast('new_message', msg);
   res.json(msg);
@@ -179,13 +244,10 @@ app.get('/api/download/photos', (req, res) => {
   const teams = db.prepare('SELECT * FROM teams').all();
   const teamMap = {};
   teams.forEach(t => { teamMap[t.id] = t.name; });
-
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', 'attachment; filename="riga-stag-hunt-photos.zip"');
-
   const archive = archiver('zip', { zlib: { level: 6 } });
   archive.pipe(res);
-
   claims.forEach(c => {
     const filename = c.photo_url.replace('/uploads/', '');
     const filepath = path.join(UPLOADS_DIR, filename);
@@ -193,41 +255,34 @@ app.get('/api/download/photos', (req, res) => {
     const teamName = (teamMap[c.team_id] || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
     const ext = path.extname(filename);
     const chId = c.challenge_id.replace('_bonus_', '-bonus-');
-    const isBonus = c.is_bonus ? '-BONUS' : '';
-    archive.file(filepath, { name: `${teamName}/challenge-${chId}${isBonus}${ext}` });
+    archive.file(filepath, { name: `${teamName}/challenge-${chId}${c.is_bonus ? '-BONUS' : ''}${ext}` });
   });
-
   const state = getState();
   let summary = `RIGA STAG HUNT — RESULTS\n${'='.repeat(40)}\n\nDate: ${new Date().toLocaleDateString()}\n\nFINAL SCORES\n${'-'.repeat(20)}\n`;
-  const sorted = [...state.teams].sort((a, b) => (state.scores[b.id] || 0) - (state.scores[a.id] || 0));
-  sorted.forEach((t, i) => { summary += `${i + 1}. ${t.name}: ${state.scores[t.id] || 0} pts\n`; });
+  [...state.teams].sort((a,b) => (state.scores[b.id]||0)-(state.scores[a.id]||0))
+    .forEach((t,i) => { summary += `${i+1}. ${t.name}: ${state.scores[t.id]||0} pts\n`; });
   summary += `\nCHALLENGE DETAILS\n${'-'.repeat(20)}\n`;
   CHALLENGES.forEach(ch => {
     const mainClaim = state.claims.find(c => c.challenge_id === String(ch.id) && !c.is_bonus);
     const team = mainClaim ? state.teams.find(t => t.id === mainClaim.team_id) : null;
-    summary += `\n[${ch.pts}pt] ${ch.title}\n  Claimed by: ${team ? team.name : 'unclaimed'}\n`;
+    summary += `\n[${ch.pts}pt] ${ch.title}\n  Claimed: ${team ? team.name : 'unclaimed'}\n`;
     if (mainClaim?.answer_text) summary += `  Answer: ${mainClaim.answer_text}${mainClaim.answer_correct ? ' ✓' : ' ✗'}\n`;
-    ch.bonus && ch.bonus.forEach(b => {
+    ch.bonus?.forEach(b => {
       const bc = state.claims.find(c => c.challenge_id === `${ch.id}_bonus_${b.id}`);
       const bt = bc ? state.teams.find(t => t.id === bc.team_id) : null;
       summary += `  Bonus (+${b.pts}pt): ${bt ? bt.name : 'unclaimed'}\n`;
-      if (bc?.answer_text) summary += `    Answer: ${bc.answer_text}\n`;
     });
   });
-
   archive.append(summary, { name: 'hunt-summary.txt' });
   archive.finalize();
 });
 
 app.post('/api/reset', (req, res) => {
   const { secret } = req.body;
-  if (secret !== process.env.ADMIN_SECRET && secret !== 'stagreset2024') {
-    return res.status(403).json({ error: 'Wrong reset code' });
-  }
+  if (secret !== RESET_CODE) return res.status(403).json({ error: 'Wrong reset code' });
   db.exec('DELETE FROM claims; DELETE FROM teams; DELETE FROM messages;');
   try {
-    const files = fs.readdirSync(UPLOADS_DIR);
-    files.forEach(f => { try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch {} });
+    fs.readdirSync(UPLOADS_DIR).forEach(f => { try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch {} });
   } catch {}
   broadcast('state_update', getState());
   res.json({ success: true });
@@ -236,10 +291,35 @@ app.post('/api/reset', (req, res) => {
 app.get('*', (req, res) => {
   const index = path.join(CLIENT_DIST, 'index.html');
   if (fs.existsSync(index)) res.sendFile(index);
-  else res.status(404).send('Client not built. Run: cd client && npm run build');
+  else res.status(404).send('Client not built.');
 });
 
-io.on('connection', (socket) => { socket.emit('state_update', getState()); });
+// In-memory location store
+const locations = {};
+
+io.on('connection', (socket) => {
+  socket.emit('state_update', getState());
+  socket.emit('locations_update', locations);
+  socket.on('location_update', (data) => {
+    const { userId, name, teamId, teamColor, teamName, lat, lng } = data;
+    if (!userId || !lat || !lng) return;
+    locations[userId] = { userId, name, teamId, teamColor, teamName, lat, lng, updatedAt: Date.now() };
+    io.emit('locations_update', locations);
+  });
+  socket.on('location_remove', (data) => {
+    if (data.userId && locations[data.userId]) {
+      delete locations[data.userId];
+      io.emit('locations_update', locations);
+    }
+  });
+});
+
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 1000;
+  let changed = false;
+  Object.keys(locations).forEach(k => { if (locations[k].updatedAt < cutoff) { delete locations[k]; changed = true; } });
+  if (changed) io.emit('locations_update', locations);
+}, 30000);
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => console.log(`Stag Hunt server on port ${PORT}`));
