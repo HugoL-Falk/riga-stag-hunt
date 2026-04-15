@@ -1,0 +1,8 @@
+[build]
+  builder = "NIXPACKS"
+  buildCommand = "npm run install:all && npm run build"
+
+[deploy]
+  startCommand = "npm start"
+  healthcheckPath = "/api/state"
+  restartPolicyType = "ON_FAILURE"
