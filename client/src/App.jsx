@@ -524,7 +524,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
           <div className="cc-expanded">
             <p className="cc-desc">{ch.desc}</p>
 
-            {ch.answerField&&!mainClaim&&(
+            {ch.answerField&&!mainClaim&&!locked&&(
               <div className="answer-field">
                 <div className="answer-label">{ch.answerField.label}</div>
                 <div className="answer-input-row">
@@ -586,7 +586,7 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
                       <span className="bonus-badge" style={bc&&bt?{...btnStyle}:{}}>{bc?'✓':''} +{b.pts}pt{b.pts>1?'s':''}</span>
                       <div className="bonus-body">
                         <p className="bonus-text">{b.text}</p>
-                        {b.answerField&&!bc&&(
+                        {b.answerField&&!bc&&!locked&&(
                           <div className="answer-field" style={{marginBottom:6}}>
                             <div className="answer-input-row">
                               <input className="answer-input" style={{fontSize:13,padding:'7px 9px'}} value={bonusAnswers[b.id]||''} onChange={e=>{setBonusAnswers(a=>({...a,[b.id]:e.target.value}));setBonusAnswerStates(s=>({...s,[b.id]:null}))}}/>
