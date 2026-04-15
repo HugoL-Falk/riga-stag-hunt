@@ -40,16 +40,23 @@ function useCountdown(huntStatus, huntStartTime, countdownMinutes) {
 
 function fmtTime(s) { if (s === null) return ''; return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}` }
 
-function HuntStartToast({ onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t) }, [onDone])
+function HuntEventModal({ icon, title, sub, onDone }) {
+  const doneRef = useRef(onDone)
+  doneRef.current = onDone
+  useEffect(() => {
+    const t = setTimeout(() => doneRef.current(), 3000)
+    return () => clearTimeout(t)
+  }, [])
   return (
-    <div className="hunt-start-toast">
-      <span style={{fontSize:28}}>🔫</span>
-      <div className="hunt-toast-body">
-        <div className="hunt-toast-title">HUNT IS ON!</div>
-        <div className="hunt-toast-sub">Go go go! 🏃</div>
+    <div className="hunt-event-overlay" onClick={() => doneRef.current()}>
+      <div className="hunt-event-modal" onClick={e => e.stopPropagation()}>
+        <button className="hunt-event-close" onClick={() => doneRef.current()}>✕</button>
+        <div className="hunt-event-icon">{icon}</div>
+        <div className="hunt-event-title">{title}</div>
+        <div className="hunt-event-sub">{sub}</div>
+        <div className="hunt-event-dismiss">Tap anywhere to dismiss</div>
+        <div className="hunt-event-bar"><div className="hunt-event-bar-fill" /></div>
       </div>
-      <span style={{fontSize:28,transform:'scaleX(-1)',display:'inline-block'}}>🔫</span>
     </div>
   )
 }
@@ -68,6 +75,7 @@ export default function App() {
   const [mapFocusId, setMapFocusId] = useState(null)
   const [claimToast, setClaimToast] = useState(null)
   const [showHuntStart, setShowHuntStart] = useState(false)
+  const [showHuntEnd, setShowHuntEnd] = useState(false)
   const challengeRefs = useRef({})
   const viewRef = useRef(view)
   viewRef.current = view
@@ -87,7 +95,7 @@ export default function App() {
       setState(prev => {
         if (prev && prev.huntStatus !== s.huntStatus) {
           if (s.huntStatus === 'active') { setShowHuntStart(true); setView('hunt') }
-          if (s.huntStatus === 'finished') setView('chat')
+          if (s.huntStatus === 'finished') { setView('chat'); setShowHuntEnd(true) }
         }
         return s
       })
@@ -145,7 +153,8 @@ export default function App() {
 
   return (
     <div className="app">
-      {showHuntStart && <HuntStartToast onDone={() => setShowHuntStart(false)} />}
+      {showHuntStart && <HuntEventModal icon="🔫" title="HUNT IS ON!" sub="Go go go! Good luck! 🏃" onDone={() => setShowHuntStart(false)} />}
+      {showHuntEnd && <HuntEventModal icon="🏁" title="HUNT IS OVER!" sub="Return to the pub — results coming soon!" onDone={() => setShowHuntEnd(false)} />}
 
       <div className="sticky-top">
         <header className="header">

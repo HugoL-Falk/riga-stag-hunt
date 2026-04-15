@@ -33,12 +33,20 @@
 /* ── Content area ── */
 .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 
-/* ── Hunt start toast ── */
-.hunt-start-toast { display: flex; align-items: center; justify-content: center; gap: 14px; background: #1a1a1a; color: #fff; padding: 14px 20px; position: relative; z-index: 26; animation: toastSlide 0.4s cubic-bezier(0.34,1.56,0.64,1); }
-@keyframes toastSlide { from{transform:translateY(-100%) scale(0.9);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
-.hunt-toast-body { text-align: center; }
-.hunt-toast-title { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
-.hunt-toast-sub { font-size: 13px; color: rgba(255,255,255,0.75); margin-top: 2px; }
+/* ── Hunt event modal (start / end) ── */
+.hunt-event-overlay { position: fixed; inset: 0; z-index: 250; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.hunt-event-modal { background: #1a1a1a; color: #fff; border-radius: 20px; padding: 32px 28px 24px; width: calc(100% - 48px); max-width: 320px; text-align: center; position: relative; animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+@keyframes popIn { from{transform:scale(0.7);opacity:0} to{transform:scale(1);opacity:1} }
+.hunt-event-close { position: absolute; top: 12px; right: 14px; background: rgba(255,255,255,0.15); border: none; color: #fff; width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.hunt-event-close:hover { background: rgba(255,255,255,0.25); }
+.hunt-event-icon { font-size: 56px; margin-bottom: 12px; }
+.hunt-event-title { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 8px; }
+.hunt-event-sub { font-size: 15px; color: rgba(255,255,255,0.75); line-height: 1.5; margin-bottom: 12px; }
+.hunt-event-dismiss { font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 16px; }
+.hunt-event-bar { height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; }
+.hunt-event-bar-fill { height: 100%; background: #fff; border-radius: 2px; animation: drainBar 3s linear forwards; }
+@keyframes drainBar { from{width:100%} to{width:0%} }
 
 /* ── Claim toast ── */
 .claim-toast { background: #1D9E75; color: #fff; text-align: center; font-size: 14px; font-weight: 700; padding: 10px 16px; animation: slideDown 0.3s ease; position: sticky; top: 0; z-index: 25; }
