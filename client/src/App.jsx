@@ -264,7 +264,7 @@ function PlaceholderScreen({ huntStatus, state, player, team }) {
           <p className="waiting-sub">Get chatting — the organiser will kick things off shortly!</p>
         </div>
         <button className={`ready-btn ${isReady?'ready':''}`} onClick={toggleReady} disabled={readying}>
-          {isReady ? '✓ You're ready!' : 'Tap when you're ready'}
+          {isReady ? "✓ You're ready!" : "Tap when you're ready"}
         </button>
         <div className="waiting-teams">
           {state.teams.map(t => {
