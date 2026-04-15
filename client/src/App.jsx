@@ -8,6 +8,12 @@ import { SERVER, STORAGE_KEY, TYPE_LABELS, CAT_LABELS, CHALLENGE_COORDS, isVideo
 import './App.css'
 
 const socket = io(SERVER, { transports: ['websocket', 'polling'] })
+const DEVICE_KEY = 'stag_device_id'
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_KEY)
+  if (!id) { id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_KEY, id) }
+  return id
+}
 
 function useLocation(identity, enabled) {
   const watchRef = useRef(null)
@@ -120,7 +126,7 @@ export default function App() {
   }, [state?.players?.length])
 
   function saveIdentity(player, team) {
-    const id = { playerId: player.id, name: player.name, team, userId }
+    const id = { playerId: player.id, name: player.name, team, userId, deviceId: getDeviceId() }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(id)); setIdentity(id)
   }
 
@@ -133,20 +139,42 @@ export default function App() {
 
   if (!state) return <div className="loading-screen">Connecting…</div>
 
-  const validTeam = identity?.team ? state.teams.find(t => t.id === identity.team.id) : null
-  const validPlayer = identity?.playerId ? state.players.find(p => p.id === identity.playerId) : null
-  if (!identity || !validTeam || !validPlayer) return <JoinScreen state={state} onJoin={saveIdentity} />
+  // Auto-rejoin: if no valid identity but device ID matches a known player, restore it
+  const deviceId = getDeviceId()
+  let resolvedIdentity = identity
+  if (!identity || !state.teams.find(t => t.id === identity?.team?.id) || !state.players.find(p => p.id === identity?.playerId)) {
+    // Try to find player by stored device ID or name
+    const storedRaw = localStorage.getItem(STORAGE_KEY)
+    const stored = storedRaw ? (() => { try { return JSON.parse(storedRaw) } catch { return null } })() : null
+    if (stored?.playerId) {
+      const matchedPlayer = state.players.find(p => p.id === stored.playerId)
+      const matchedTeam = matchedPlayer ? state.teams.find(t => t.id === matchedPlayer.team_id) : null
+      if (matchedPlayer && matchedTeam) {
+        const restored = { playerId: matchedPlayer.id, name: matchedPlayer.name, team: matchedTeam, userId, deviceId }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(restored))
+        resolvedIdentity = restored
+        if (!identity) setTimeout(() => setIdentity(restored), 0)
+      }
+    }
+  }
+
+  const validTeam = resolvedIdentity?.team ? state.teams.find(t => t.id === resolvedIdentity.team.id) : null
+  const validPlayer = resolvedIdentity?.playerId ? state.players.find(p => p.id === resolvedIdentity.playerId) : null
+  if (!resolvedIdentity || !validTeam || !validPlayer) return <JoinScreen state={state} onJoin={saveIdentity} />
 
   const team = validTeam, player = validPlayer
+  if (identity !== resolvedIdentity && resolvedIdentity) { /* identity will update via setState */ }
   const { huntStatus, resultsEnabled } = state
   const myScore = state.scores[team.id] || 0
 
   const showHuntTab = huntStatus === 'active' || (huntStatus === 'finished' && resultsEnabled)
+  const showGallery = huntStatus === 'active' || huntStatus === 'finished'
   const navTabs = [
     { id:'chat', label:'Chat' },
     { id:'map', label:'Map' },
+    ...(huntStatus==='waiting' ? [{ id:'tutorial', label:'Tutorial' }, { id:'waiting', label:'Teams' }] : []),
     ...(showHuntTab ? [{ id:'hunt', label:'Challenges' }] : []),
-    ...(huntStatus==='active' ? [{ id:'gallery', label:'Gallery' }] : []),
+    ...(showGallery ? [{ id:'gallery', label:'Gallery' }] : []),
     ...(huntStatus==='finished'&&resultsEnabled ? [{ id:'results', label:'🏆 Results' }] : []),
   ]
   const validView = navTabs.find(t => t.id === view) ? view : 'chat'
@@ -203,9 +231,11 @@ export default function App() {
         {validView==='hunt' && huntStatus==='finished' && resultsEnabled && (
           <HuntView state={state} team={team} filter={filter} setFilter={setFilter} highlightChallenge={highlightChallenge} setHighlightChallenge={setHighlightChallenge} challengeRefs={challengeRefs} onGoToMap={goToMap} onToast={showToast} locked={true}/>
         )}
-        {validView==='hunt' && huntStatus==='waiting' && <PlaceholderScreen huntStatus={huntStatus}/>}
-        {validView==='hunt' && huntStatus==='finished' && !resultsEnabled && <PlaceholderScreen huntStatus={huntStatus}/>}
-        {validView==='gallery' && (huntStatus==='active'||huntStatus==='finished') && <GalleryView state={state}/>}
+        {validView==='hunt' && huntStatus==='waiting' && <PlaceholderScreen huntStatus={huntStatus} state={state} player={player} team={team}/>}
+        {validView==='hunt' && huntStatus==='finished' && !resultsEnabled && <PlaceholderScreen huntStatus={huntStatus} state={state} player={player} team={team}/>}
+        {validView==='tutorial' && <TutorialView team={team} player={player}/>}
+        {validView==='waiting' && <PlaceholderScreen huntStatus={huntStatus} state={state} player={player} team={team}/>}
+        {validView==='gallery' && showGallery && <GalleryView state={state}/>}
         {validView==='results' && <ResultsView state={state}/>}
       </div>
 
@@ -214,25 +244,94 @@ export default function App() {
   )
 }
 
-function PlaceholderScreen({ huntStatus }) {
+function PlaceholderScreen({ huntStatus, state, player, team }) {
+  const [readying, setReadying] = useState(false)
+  const isReady = !!player?.ready
+
+  async function toggleReady() {
+    if (!player) return
+    setReadying(true)
+    await fetch(`${SERVER}/api/players/${player.id}/ready`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ready: !isReady }) })
+    setReadying(false)
+  }
+
+  if (huntStatus === 'waiting' && state && player) {
+    return (
+      <div className="waiting-room">
+        <div className="waiting-header">
+          <div style={{fontSize:32}}>⏳</div>
+          <h2 className="waiting-title">Waiting for the hunt to start</h2>
+          <p className="waiting-sub">Get chatting — the organiser will kick things off shortly!</p>
+        </div>
+        <button className={`ready-btn ${isReady?'ready':''}`} onClick={toggleReady} disabled={readying}>
+          {isReady ? '✓ You're ready!' : 'Tap when you're ready'}
+        </button>
+        <div className="waiting-teams">
+          {state.teams.map(t => {
+            const members = state.players.filter(p => p.team_id === t.id)
+            const allReady = members.length > 0 && members.every(p => p.ready)
+            const isMyTeam = t.id === team?.id
+            return (
+              <details key={t.id} className={`waiting-team-card ${allReady?'all-ready':''} ${isMyTeam?'my-team':''}`} open={isMyTeam}>
+                <summary className="waiting-team-summary">
+                  <span className="tdot" style={{background:t.color}}/>
+                  <span className="waiting-team-name" style={{color:t.color}}>{t.name}</span>
+                  <span className="waiting-team-count">{members.length} joined</span>
+                  {allReady && <span className="all-ready-badge">All ready!</span>}
+                </summary>
+                <div className="waiting-members">
+                  {members.length === 0
+                    ? <span className="waiting-empty">No members yet</span>
+                    : members.map(m => (
+                      <div key={m.id} className="waiting-member">
+                        <span className={`ready-dot ${m.ready?'ready':''}`}/>
+                        <span>{m.name}</span>
+                        {m.id === player?.id && <span className="you-badge">you</span>}
+                      </div>
+                    ))
+                  }
+                </div>
+              </details>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="placeholder-screen">
-      {huntStatus==='waiting' ? <><div style={{fontSize:48}}>⏳</div><h2>Hunt starting soon…</h2><p>Check the Chat and Map while you wait!</p></>
-        : <><div style={{fontSize:48}}>🎉</div><h2>Hunt complete!</h2><p>Return to the pub. Results coming soon!</p></>}
+      <div style={{fontSize:48}}>🎉</div>
+      <h2>Hunt complete!</h2>
+      <p>Return to the pub. Results coming soon!</p>
     </div>
   )
 }
 
 function JoinScreen({ state, onJoin }) {
-  const [step, setStep] = useState(state.teams.length>0?'choose':'create')
   const [name, setName] = useState(window._savedName||'')
   const [teamName, setTeamName] = useState('')
-  const [selectedTeam, setSelectedTeam] = useState(null)
+  const [selectedTeamId, setSelectedTeamId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
-  async function createTeam() {
-    if (!name.trim()) return setErr('Enter your name')
+  // Live team list — always reflects current state from socket
+  const selectedTeam = state.teams.find(t => t.id === selectedTeamId) || null
+
+  async function joinSelected() {
+    if (!name.trim()) return setErr('Enter your name first')
+    if (!selectedTeam) return setErr('Select a team above')
+    setLoading(true); setErr('')
+    try {
+      const pr = await fetch(`${SERVER}/api/players/join`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),team_id:selectedTeam.id})})
+      const player = await pr.json(); if(!pr.ok) throw new Error(player.error)
+      onJoin(player, selectedTeam)
+    } catch(e) { setErr(e.message) }
+    setLoading(false)
+  }
+
+  async function createAndJoin() {
+    if (!name.trim()) return setErr('Enter your name first')
     if (!teamName.trim()) return setErr('Enter a team name')
     setLoading(true); setErr('')
     try {
@@ -245,54 +344,55 @@ function JoinScreen({ state, onJoin }) {
     setLoading(false)
   }
 
-  async function joinTeam() {
-    if (!name.trim()) return setErr('Enter your name')
-    if (!selectedTeam) return setErr('Select a team')
-    setLoading(true); setErr('')
-    try {
-      const pr = await fetch(`${SERVER}/api/players/join`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),team_id:selectedTeam.id})})
-      const player = await pr.json(); if(!pr.ok) throw new Error(player.error)
-      onJoin(player, selectedTeam)
-    } catch(e) { setErr(e.message) }
-    setLoading(false)
-  }
-
   return (
     <div className="join-screen">
       <div className="join-card">
         <div style={{fontSize:40,textAlign:'center'}}>🍺</div>
         <h1 className="join-title">Riga Stag Hunt</h1>
         <p className="join-sub">Welcome to a challenge hunt that will take you around Riga.</p>
-        <input className="field" placeholder="Your name" value={name} onChange={e=>{setName(e.target.value);setErr('')}}/>
-        {step==='choose'&&state.teams.length>0&&(
+
+        <label className="field-label">Your name</label>
+        <input className="field" value={name} onChange={e=>{setName(e.target.value);setErr('')}} autoFocus/>
+
+        {state.teams.length > 0 && (
           <>
-            <p className="section-label">Pick your team</p>
+            <p className="section-label" style={{marginTop:8}}>Join a team</p>
             <div className="team-list">
-              {state.teams.map(t=>(
-                <button key={t.id} className={`team-pick ${selectedTeam?.id===t.id?'selected':''}`} onClick={()=>setSelectedTeam(selectedTeam?.id===t.id?null:t)} style={{'--tc':t.color}}>
-                  <span className="tdot" style={{background:t.color}}/>{t.name}
-                  <span style={{marginLeft:'auto',fontSize:11,color:'#aaa'}}>{state.players.filter(p=>p.team_id===t.id).length} joined</span>
-                  {selectedTeam?.id===t.id&&<span style={{color:t.color}}>✓</span>}
-                </button>
-              ))}
+              {state.teams.map(t => {
+                const memberCount = state.players.filter(p => p.team_id === t.id).length
+                const isSelected = selectedTeamId === t.id
+                return (
+                  <button key={t.id} className={`team-pick ${isSelected?'selected':''}`}
+                    onClick={() => setSelectedTeamId(isSelected ? null : t.id)}
+                    style={{'--tc': t.color}}>
+                    <span className="tdot" style={{background:t.color}}/>
+                    <span className="team-pick-name">{t.name}</span>
+                    <span className="team-pick-count">{memberCount} joined</span>
+                    {isSelected && <span style={{color:t.color,fontWeight:700}}>✓</span>}
+                  </button>
+                )
+              })}
             </div>
-            {err&&<p className="form-err">{err}</p>}
-            <button className="big-btn" onClick={joinTeam} disabled={loading||!selectedTeam||!name.trim()}>{loading?'Joining…':'Join team'}</button>
-            <button className="big-btn ghost" onClick={()=>{setStep('create');setErr('')}}>+ Create new team</button>
+            {selectedTeam && (
+              <button className="big-btn" onClick={joinSelected} disabled={loading||!name.trim()}>
+                {loading ? 'Joining…' : `Join ${selectedTeam.name} →`}
+              </button>
+            )}
+            <div className="join-divider"><span>or create a new team</span></div>
           </>
         )}
-        {(step==='create'||state.teams.length===0)&&(
-          <>
-            <input className="field" placeholder="New team name" value={teamName} onChange={e=>{setTeamName(e.target.value);setErr('')}}/>
-            {err&&<p className="form-err">{err}</p>}
-            <button className="big-btn" onClick={createTeam} disabled={loading||!name.trim()||!teamName.trim()}>{loading?'Creating…':'Create team & join'}</button>
-            {state.teams.length>0&&<button className="big-btn ghost" onClick={()=>{setStep('choose');setErr('')}}>← Join existing team</button>}
-          </>
-        )}
+
+        <label className="field-label">New team name</label>
+        <input className="field" value={teamName} onChange={e=>{setTeamName(e.target.value);setErr('')}}/>
+        {err && <p className="form-err">{err}</p>}
+        <button className="big-btn ghost" onClick={createAndJoin} disabled={loading||!name.trim()||!teamName.trim()}>
+          {loading ? 'Creating…' : 'Create team & join'}
+        </button>
       </div>
     </div>
   )
 }
+
 
 function HuntView({ state, team, filter, setFilter, highlightChallenge, setHighlightChallenge, challengeRefs, onGoToMap, onToast, locked=false }) {
   const cats = ['all','landmark','quick','medium','hard']
@@ -663,6 +763,261 @@ function GalleryView({ state }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Tutorial challenges ───────────────────────────────────────────────────────
+const TUTORIAL_CHALLENGES = [
+  {
+    id: 't1',
+    title: 'Say hello to another team',
+    pts: 1,
+    desc: 'Find someone from a different team and get a photo together waving at the camera. Tests: photo upload.',
+    type: 'photo',
+    bonus: [
+      { id: 't1a', pts: 1, text: 'Both people pull a funny face instead of waving.' },
+    ]
+  },
+  {
+    id: 't2',
+    title: 'Guess the city',
+    pts: 1,
+    desc: 'What is the capital city of Latvia? Tests: answer validation.',
+    type: 'trivia',
+    answerField: { label: 'What is the capital of Latvia?', correct: 'riga' },
+    answerOnly: true,
+    bonus: []
+  },
+  {
+    id: 't3',
+    title: 'Team selfie',
+    pts: 1,
+    desc: 'Get a photo of everyone in your team together. Tests: photo upload + bonus.',
+    type: 'photo',
+    bonus: [
+      { id: 't3a', pts: 1, text: 'Everyone is holding a drink.' },
+      { id: 't3b', pts: 1, text: 'Someone is doing a thumbs up.' },
+    ]
+  },
+  {
+    id: 't4',
+    title: 'Name the stag',
+    pts: 1,
+    desc: "What is the name of the groom-to-be (the stag)? Tests: answer with no photo.",
+    type: 'trivia',
+    answerField: { label: "What's the stag's name?", correct: null },
+    answerOnly: true,
+    bonus: []
+  },
+  {
+    id: 't5',
+    title: 'Video challenge',
+    pts: 1,
+    desc: 'Record a 5-second video of your team doing a countdown from 5 to 1. Tests: video upload.',
+    type: 'task',
+    video: true,
+    bonus: [
+      { id: 't5a', pts: 1, text: 'End the countdown with a synchronised jump.' },
+    ]
+  },
+]
+
+const TUTORIAL_STORAGE = 'stag_tutorial_v1'
+
+function TutorialView({ team, player }) {
+  const [claims, setClaims] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(TUTORIAL_STORAGE)) || {} } catch { return {} }
+  })
+  const [resetConfirm, setResetConfirm] = useState(false)
+
+  function saveClaims(c) { setClaims(c); localStorage.setItem(TUTORIAL_STORAGE, JSON.stringify(c)) }
+
+  function claim(challengeId, isBonus, answerText) {
+    const key = isBonus ? `${challengeId}_bonus` : challengeId
+    saveClaims({ ...claims, [key]: { claimedBy: player.name, team: team.name, color: team.color, answer: answerText || null, at: Date.now() } })
+  }
+
+  function unclaim(challengeId, isBonus) {
+    const key = isBonus ? `${challengeId}_bonus` : challengeId
+    const next = { ...claims }; delete next[key]; saveClaims(next)
+  }
+
+  function resetAll() { saveClaims({}); setResetConfirm(false) }
+
+  const totalClaimed = Object.keys(claims).length
+
+  return (
+    <div className="hunt-view">
+      <div className="tutorial-header">
+        <div className="tutorial-header-text">
+          <div className="tutorial-title">🎓 Tutorial</div>
+          <div className="tutorial-sub">Practice before the hunt starts. Nothing here counts toward your score.</div>
+        </div>
+        {resetConfirm ? (
+          <div className="tutorial-reset-confirm">
+            <span>Reset all?</span>
+            <button className="tut-btn red" onClick={resetAll}>Yes</button>
+            <button className="tut-btn" onClick={() => setResetConfirm(false)}>No</button>
+          </div>
+        ) : (
+          <button className="tut-reset-btn" onClick={() => setResetConfirm(true)} disabled={totalClaimed === 0}>
+            ↺ Reset ({totalClaimed})
+          </button>
+        )}
+      </div>
+      <div className="clist" style={{paddingTop:0}}>
+        {TUTORIAL_CHALLENGES.map(ch => (
+          <TutorialCard key={ch.id} ch={ch} claims={claims} team={team} player={player} onClaim={claim} onUnclaim={unclaim} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TutorialCard({ ch, claims, team, player, onClaim, onUnclaim }) {
+  const [expanded, setExpanded] = useState(false)
+  const [answer, setAnswer] = useState('')
+  const [answerState, setAnswerState] = useState(null)
+  const [bonusAnswers, setBonusAnswers] = useState({})
+  const [uploading, setUploading] = useState(null)
+  const fileRef = useRef()
+  const bonusFileRefs = useRef({})
+
+  const mainKey = ch.id
+  const mainClaim = claims[mainKey]
+
+  async function validateAnswer(text, correct) {
+    if (!text.trim()) return false
+    if (!correct) return true
+    return text.toLowerCase().trim().includes(correct.toLowerCase())
+  }
+
+  async function handlePhotoUpload(file, isBonus, bonusId, answerText) {
+    const key = isBonus ? bonusId : 'main'
+    setUploading(key)
+    // Simulate upload delay for realism
+    await new Promise(r => setTimeout(r, 600))
+    if (isBonus) onClaim(`${ch.id}_${bonusId}`, true, answerText)
+    else onClaim(ch.id, false, answerText)
+    setUploading(null)
+  }
+
+  return (
+    <div className={`cc ${mainClaim ? 'fully-done' : ''}`}>
+      <div className="cc-top" onClick={() => setExpanded(e => !e)}>
+        <div className="pts-badge p1">{ch.pts}pt</div>
+        <div className="cc-body">
+          <div className="cc-row">
+            <span className="cc-title">{ch.title}</span>
+            <span className={`type-tag t${ch.type}`}>{TYPE_LABELS[ch.type]||ch.type}</span>
+            {ch.video && <span className="video-tag">🎥</span>}
+          </div>
+          {mainClaim ? (
+            <div className="claimed-banner" style={{background:`${team.color}18`,border:`1px solid ${team.color}44`}}>
+              <span className="claimed-check" style={{color:team.color}}>✓</span>
+              <div className="claimed-info">
+                <div className="claimed-team" style={{color:team.color}}>{mainClaim.claimedBy} · {mainClaim.team}</div>
+                <div className="claimed-sub">{mainClaim.answer ? `${mainClaim.answer} · ` : ''}claimed</div>
+              </div>
+            </div>
+          ) : ch.bonus?.length > 0 && (
+            <div className="bonus-summary">
+              {ch.bonus.map(b => {
+                const bc = claims[`${ch.id}_${b.id}`]
+                return <span key={b.id} className={`bonus-dot ${bc?'got':''}`}>+{b.pts}</span>
+              })}
+              <span style={{fontSize:11,color:'#aaa'}}> bonus</span>
+            </div>
+          )}
+        </div>
+        <div className="expand-icon">{expanded?'▲':'▼'}</div>
+      </div>
+
+      {expanded && (
+        <div className="cc-expanded">
+          <p className="cc-desc">{ch.desc}</p>
+          <div className="tutorial-sandbox-note">🎓 Tutorial — not scored</div>
+
+          {ch.answerField && !mainClaim && (
+            <div className="answer-field">
+              <div className="answer-label">{ch.answerField.label}</div>
+              <div className="answer-input-row">
+                <input className="answer-input" value={answer} onChange={e=>{setAnswer(e.target.value);setAnswerState(null)}}/>
+                <button className={`answer-check-btn ${answerState||''}`} disabled={!answer.trim()||answerState==='checking'}
+                  onClick={async()=>{
+                    setAnswerState('checking')
+                    const ok = await validateAnswer(answer, ch.answerField.correct)
+                    setAnswerState(ok?'correct':'wrong')
+                    if (ok && ch.answerOnly) onClaim(ch.id, false, answer)
+                  }}>
+                  {answerState==='checking'?'…':answerState==='correct'?'✓':answerState==='wrong'?'✗':'✓?'}
+                </button>
+              </div>
+              {answerState==='correct'&&<div className="answer-feedback correct">✓ Correct! {!ch.answerOnly?'Now upload your photo.':''}</div>}
+              {answerState==='wrong'&&<div className="answer-feedback wrong">✗ Not quite — try again!</div>}
+            </div>
+          )}
+
+          {!mainClaim && !ch.answerOnly && (
+            <div className="claim-area">
+              {ch.answerField?.correct ? (
+                answerState==='correct' ? (
+                  <>
+                    <input ref={fileRef} type="file" accept={ch.video?'image/*,video/*':'image/*'} style={{display:'none'}} onChange={e=>e.target.files[0]&&handlePhotoUpload(e.target.files[0],false,null,answer)}/>
+                    <button className="claim-btn primary" onClick={()=>fileRef.current.click()} disabled={uploading==='main'}>
+                      {uploading==='main'?'Uploading…':'📷 Upload to claim'}
+                    </button>
+                  </>
+                ) : <div className="claim-hint">Answer correctly above to unlock upload</div>
+              ) : (
+                <>
+                  <input ref={fileRef} type="file" accept={ch.video?'image/*,video/*':'image/*'} style={{display:'none'}} onChange={e=>e.target.files[0]&&handlePhotoUpload(e.target.files[0],false,null,answer)}/>
+                  <button className="claim-btn primary" onClick={()=>fileRef.current.click()} disabled={uploading==='main'}>
+                    {uploading==='main'?'Uploading…':'📷 Upload to claim'}
+                  </button>
+                  {ch.video&&<div className="media-hint">Photo or video accepted</div>}
+                </>
+              )}
+            </div>
+          )}
+          {mainClaim && <button className="unclaim-btn" onClick={()=>onUnclaim(ch.id,false)}>↩ Unclaim</button>}
+
+          {ch.bonus?.length > 0 && (
+            <div className="bonus-section">
+              <div className="bonus-header">Bonus objectives</div>
+              {ch.bonus.map(b => {
+                const bonusKey = `${ch.id}_${b.id}`
+                const bc = claims[bonusKey]
+                const bAs = bonusAnswers[b.id + '_state']
+                return (
+                  <div key={b.id} className={`bonus-row ${bc?'done':''}`}>
+                    <span className={`bonus-badge ${bc?'got':''}`} style={bc?{background:team.color+'18',color:team.color,borderColor:team.color+'55'}:{}}>
+                      {bc?'✓':''} +{b.pts}pt
+                    </span>
+                    <div className="bonus-body">
+                      <p className="bonus-text">{b.text}</p>
+                      {bc ? (
+                        <div className="bonus-claimed" style={{color:team.color}}>
+                          ✓ {bc.claimedBy}
+                          <button className="unclaim-btn sm" onClick={()=>onUnclaim(bonusKey, true)}>↩</button>
+                        </div>
+                      ) : (
+                        <>
+                          <input ref={el=>bonusFileRefs.current[b.id]=el} type="file" accept="image/*,video/*" style={{display:'none'}} onChange={e=>e.target.files[0]&&handlePhotoUpload(e.target.files[0],true,b.id,null)}/>
+                          <button className="claim-btn small" onClick={()=>bonusFileRefs.current[b.id]?.click()} disabled={uploading===b.id}>
+                            {uploading===b.id?'Uploading…':'📷 Upload to claim bonus'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -136,6 +136,10 @@ export default function ResultsView({ state }) {
         {!mapReady && <div className="map-loading">Loading map…</div>}
       </div>
 
+      <div style={{textAlign:'center',padding:'4px 0 8px'}}>
+        <a className="results-dl-btn" href={`${SERVER}/api/download/photos`} download>↓ Download all photos &amp; chat log</a>
+      </div>
+
       <div className="results-section">
         <div className="results-section-title">Challenge breakdown</div>
         {state.challenges.filter(ch=>state.claims.some(c=>c.challenge_id===String(ch.id)&&!c.is_bonus)).map(ch=>{

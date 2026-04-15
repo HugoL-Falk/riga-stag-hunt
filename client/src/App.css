@@ -312,3 +312,40 @@
 .join-divider::before,.join-divider::after { content:""; flex:1; height:1px; background:#e0ddd8; }
 .team-pick-name { flex: 1; font-weight: 600; text-align: left; }
 .team-pick-count { font-size: 11px; color: #aaa; }
+/* ── Waiting room ── */
+.waiting-room { flex: 1; overflow-y: auto; padding: 16px 14px 80px; }
+.waiting-header { text-align: center; margin-bottom: 16px; }
+.waiting-title { font-size: 18px; font-weight: 700; margin: 8px 0 6px; }
+.waiting-sub { font-size: 13px; color: #666; line-height: 1.5; }
+.ready-btn { width: 100%; padding: 14px; border-radius: 12px; border: 2px solid #ddd; background: #fff; font-size: 15px; font-weight: 700; color: #888; cursor: pointer; margin-bottom: 16px; transition: all 0.2s; }
+.ready-btn.ready { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+.waiting-teams { display: flex; flex-direction: column; gap: 8px; }
+.waiting-team-card { background: #fff; border: 1px solid #e5e2dc; border-radius: 12px; overflow: hidden; }
+.waiting-team-card.my-team { border-color: #1a1a1a; border-width: 2px; }
+.waiting-team-card.all-ready { border-color: #1D9E75; }
+.waiting-team-summary { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; list-style: none; font-weight: 600; font-size: 14px; user-select: none; }
+.waiting-team-summary::-webkit-details-marker { display: none; }
+.waiting-team-name { flex: 1; }
+.waiting-team-count { font-size: 11px; color: #aaa; font-weight: 400; }
+.all-ready-badge { font-size: 11px; font-weight: 700; color: #1D9E75; background: #EAF3DE; padding: 2px 8px; border-radius: 10px; }
+.waiting-members { display: flex; flex-direction: column; gap: 5px; padding: 0 14px 12px; border-top: 1px solid #f0ede8; }
+.waiting-member { display: flex; align-items: center; gap: 8px; font-size: 13px; padding-top: 6px; }
+.ready-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; flex-shrink: 0; }
+.ready-dot.ready { background: #1D9E75; }
+.you-badge { font-size: 10px; font-weight: 700; color: #888; background: #f0ede8; padding: 1px 6px; border-radius: 8px; }
+.waiting-empty { font-size: 12px; color: #aaa; padding-top: 8px; }
+
+/* ── Tutorial ── */
+.tutorial-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 12px 8px; }
+.tutorial-header-text { flex: 1; }
+.tutorial-title { font-size: 16px; font-weight: 700; }
+.tutorial-sub { font-size: 12px; color: #888; margin-top: 2px; line-height: 1.4; }
+.tut-reset-btn { flex-shrink: 0; font-size: 11px; padding: 6px 11px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #666; white-space: nowrap; }
+.tut-reset-btn:disabled { opacity: 0.35; }
+.tutorial-reset-confirm { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 12px; color: #c00; }
+.tut-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #ddd; background: transparent; cursor: pointer; font-weight: 600; }
+.tut-btn.red { border-color: #c00; color: #c00; }
+.tutorial-sandbox-note { font-size: 11px; color: #aaa; background: #f8f6f2; border-radius: 6px; padding: 5px 9px; margin-bottom: 10px; font-style: italic; }
+
+/* ── Results download button ── */
+.results-dl-btn { display: inline-block; font-size: 12px; padding: 7px 14px; border-radius: 8px; background: #1a1a1a; color: #fff; text-decoration: none; font-weight: 600; }
