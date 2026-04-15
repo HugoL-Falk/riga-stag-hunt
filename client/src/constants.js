@@ -21,7 +21,7 @@ export const CHALLENGE_COORDS = {
 export const ADMIN_ANSWERS = {
   '2':          { q: 'Three Brothers — oldest century?', a: '15th century (late 1400s)' },
   '2_bonus_2a': { q: 'Three Brothers — middle brother style?', a: 'Mannerist (built 1646)' },
-  '11':         { q: 'Oldest object — judge lowest year submitted', a: 'Compare team answers' },
+  '11':         { q: 'Oldest object — compare lowest year submitted', a: 'Judge by team answers' },
   '207':        { q: 'Mystery church name?', a: "St. John's, St. James's, St. George's, etc." },
 }
 
