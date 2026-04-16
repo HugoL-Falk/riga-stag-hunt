@@ -263,6 +263,14 @@ function PlaceholderScreen({ huntStatus, state, player, team }) {
           <h2 className="waiting-title">Waiting for the hunt to start</h2>
           <p className="waiting-sub">Get chatting — the organiser will kick things off shortly!</p>
         </div>
+
+        <div className="waiting-tip">
+          <div className="waiting-tip-icon">📹</div>
+          <div className="waiting-tip-body">
+            <div className="waiting-tip-title">iPhone video tip</div>
+            <div className="waiting-tip-text">Videos must be under 40MB (~18 seconds at default quality). To keep files small, go to <strong>Settings → Camera → Record Video</strong> and set it to <strong>1080p HD at 30 fps</strong> before the hunt starts.</div>
+          </div>
+        </div>
         <button className={`ready-btn ${isReady?'ready':''}`} onClick={toggleReady} disabled={readying}>
           {isReady ? "✓ You're ready!" : "Tap when you're ready"}
         </button>
@@ -443,6 +451,24 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
 
   async function handleClaim(file, challengeId, isBonus, answerText, answerOnly=false) {
     const key = isBonus?challengeId:'main'
+
+    // Video size check — 30MB cap with iPhone-specific instructions
+    if (file && file.type.startsWith('video/') || (file && /\.(mp4|mov|quicktime)$/i.test(file.name))) {
+      const mb = file.size / (1024 * 1024)
+      if (mb > 40) {
+        alert(
+          `Video too large (${mb.toFixed(0)}MB — max 30MB).
+
+` +
+          `Tip for iPhone: Open the clip in the Photos app, tap Edit → trim it shorter, then try again.
+
+` +
+          `Or go to Settings → Camera → Record Video and switch to 1080p HD 30fps to record smaller files.`
+        )
+        return
+      }
+    }
+
     setUploading(key)
     let mediaFile = file
     if(file?.type.startsWith('image/')) mediaFile = await compressImage(file)
@@ -665,13 +691,18 @@ function ChatView({ messages, state, team, player, huntStatus }) {
     setSending(false)
   }
 
+  const isResultsEnabled = state.resultsEnabled
   const statusBanner = huntStatus==='waiting'?'🏁 The hunt is being prepared — please wait…'
+    :huntStatus==='finished'&&isResultsEnabled?'🏆 Final scores are in! Head to the Results tab to see who won!'
     :huntStatus==='finished'?'🎉 The hunt has finished. Return to the pub and await the final result…'
     :null
+  const bannerStyle = huntStatus==='finished'&&isResultsEnabled
+    ? {background:'#1D9E75',color:'#fff',fontWeight:700}
+    : {}
 
   return(
     <div className="chat-view">
-      {statusBanner&&<div className="chat-status-banner">{statusBanner}</div>}
+      {statusBanner&&<div className="chat-status-banner" style={bannerStyle}>{statusBanner}</div>}
       <div className="chat-messages">
         {messages.length===0&&<p className="chat-empty">{huntStatus==='waiting'?'Hunt starting soon — say hi!':'No messages yet.'}</p>}
         {messages.map(m=>(

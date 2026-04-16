@@ -356,3 +356,31 @@
 .time-adj-btn.plus:hover { background: #EAF3DE; }
 .time-adj-btn.minus { border-color: #D85A30; color: #D85A30; }
 .time-adj-btn.minus:hover { background: #FDE8E0; }
+/* ── Waiting room tip card ── */
+.waiting-tip { display: flex; gap: 12px; background: #FFF8E7; border: 1px solid #F0C040; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.waiting-tip-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.waiting-tip-body { flex: 1; }
+.waiting-tip-title { font-size: 13px; font-weight: 700; color: #7A5800; margin-bottom: 4px; }
+.waiting-tip-text { font-size: 12px; color: #6B4F00; line-height: 1.5; }
+.waiting-tip-text strong { font-weight: 700; }
+/* ── Results team breakdown ── */
+.results-team-block { border: 1px solid #e5e2dc; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+.results-team-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #f8f6f2; border-left: 3px solid; }
+.results-team-name { font-size: 14px; font-weight: 700; flex: 1; }
+.results-team-total { font-size: 14px; font-weight: 800; }
+.results-team-empty { font-size: 12px; color: #aaa; padding: 10px 12px; font-style: italic; }
+.results-cat-section { padding: 6px 12px 4px; border-top: 1px solid #f0ede8; }
+.results-cat-section:first-of-type { border-top: none; }
+.results-cat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #bbb; margin-bottom: 4px; }
+.results-ch-item { padding: 5px 0; border-top: 1px solid #f8f6f2; }
+.results-ch-item:first-of-type { border-top: none; }
+.results-ch-item-main { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.results-ch-item-title { font-size: 13px; font-weight: 600; flex: 1; }
+.results-ch-item-pts { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+.results-ch-item-detail { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 2px 0 2px 8px; }
+.results-ch-item-detail.bonus { padding-left: 16px; }
+.results-ch-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #f0ede8; color: #666; white-space: nowrap; }
+.results-ch-badge.bonus { background: #EEEDFE; color: #3C3489; }
+.results-ch-badge-pts { font-size: 10px; font-weight: 700; color: #888; }
+.results-ch-bonus-text { font-size: 10px; color: #999; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.results-ch-answer { font-size: 10px; color: #1D9E75; font-weight: 600; background: #EAF3DE; padding: 1px 5px; border-radius: 4px; }

@@ -155,7 +155,7 @@ async function startServer() {
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => { const ext = path.extname(file.originalname) || '.jpg'; cb(null, `${uuidv4()}${ext}`); }
   });
-  const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, /jpeg|jpg|png|gif|webp|mp4|mov|quicktime|video/.test(file.mimetype)) });
+  const upload = multer({ storage, limits: { fileSize: 40 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, /jpeg|jpg|png|gif|webp|mp4|mov|quicktime|video/.test(file.mimetype)) });
   const chatUpload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, /jpeg|jpg|png|gif|webp/.test(file.mimetype)) });
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -347,6 +347,36 @@ async function startServer() {
     let summary = `FINAL SCORES\n${'='.repeat(30)}\n`;
     [...state.teams].sort((a,b)=>(state.scores[b.id]||0)-(state.scores[a.id]||0)).forEach((t,i) => { summary += `${i+1}. ${t.name}: ${state.scores[t.id]||0}pts\n`; });
     arc.append(summary, { name: 'results.txt' });
+
+    // Include a standalone HTML map of movement trails
+    const locHistory = prepare('SELECT * FROM location_history ORDER BY recorded_at ASC').all();
+    if (locHistory.length > 0) {
+      const byPlayer = {};
+      locHistory.forEach(pt => {
+        if (!byPlayer[pt.player_id]) byPlayer[pt.player_id] = { name: pt.player_name, color: pt.team_color || '#888', pts: [] };
+        byPlayer[pt.player_id].pts.push([pt.lat, pt.lng]);
+      });
+      const trailsJson = JSON.stringify(Object.values(byPlayer));
+      const mapHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Riga Stag Hunt — Movement Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>body{margin:0}#map{height:100vh}</style>
+</head><body><div id="map"></div><script>
+const map = L.map('map').setView([56.9490,24.1070],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+const trails = ${trailsJson};
+trails.forEach(p => {
+  if (p.pts.length < 2) return;
+  L.polyline(p.pts,{color:p.color,weight:3,opacity:0.75}).addTo(map);
+  const last = p.pts[p.pts.length-1];
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="10" fill="'+p.color+'" stroke="white" stroke-width="2"/><text x="11" y="11" font-size="9" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif">'+p.name[0].toUpperCase()+'</text></svg>';
+  L.marker(last,{icon:L.divIcon({html:svg,className:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map).bindTooltip(p.name);
+});
+<\/script></body></html>`;
+      arc.append(mapHtml, { name: 'movement-map.html' });
+    }
+
     arc.finalize();
   });
 
