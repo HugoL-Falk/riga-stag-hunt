@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ["python39", "gcc", "gnumake", "nodejs_18", "nodePackages.node-gyp"]
+
+[phases.install]
+cmds = [
+  "npm install --prefix server",
+  "npm install --prefix client"
+]
+
+[phases.build]
+cmds = ["npm run build --prefix client"]
+
+[start]
+cmd = "node server/index.js"
