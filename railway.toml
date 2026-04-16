@@ -2,6 +2,6 @@
   builder = "NIXPACKS"
 
 [deploy]
-  startCommand = "node server/index.js"
+  startCommand = "npm start"
   healthcheckPath = "/api/state"
   restartPolicyType = "ON_FAILURE"
