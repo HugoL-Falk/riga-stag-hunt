@@ -33,6 +33,13 @@ export default function AdminPanel({ state, onClose }) {
     catch(e) { flash(e.message, true) }
   }
 
+  async function adjustTime(minutes) {
+    const sign = minutes > 0 ? '+' : ''
+    if (!confirm(`${sign}${minutes} minutes to the hunt timer?`)) return
+    try { await post('/api/admin/hunt', { action: 'adjust_time', adjust_minutes: minutes }); flash(`Time adjusted ${sign}${minutes} min`) }
+    catch(e) { flash(e.message, true) }
+  }
+
   async function removeClaim(challengeId, isBonus=false) {
     try { await post('/api/admin/remove-claim', { challenge_id: challengeId, is_bonus: isBonus }); flash('Claim removed — now available again'); }
     catch(e) { flash(e.message, true) }
@@ -120,7 +127,20 @@ export default function AdminPanel({ state, onClose }) {
                       <button className="big-btn green" onClick={()=>huntAction('start',{countdown_minutes:countdown})}>▶ Start the hunt</button>
                     </>
                   )}
-                  {state.huntStatus === 'active' && <button className="big-btn red" onClick={()=>{if(confirm('End the hunt now?'))huntAction('finish')}}>■ Finish the hunt</button>}
+                  {state.huntStatus === 'active' && (
+                    <>
+                      <button className="big-btn red" onClick={()=>{if(confirm('End the hunt now?'))huntAction('finish')}}>■ Finish the hunt</button>
+                      <div className="admin-section-label" style={{marginTop:8}}>Adjust time mid-hunt</div>
+                      <div className="time-adjust-row">
+                        <button className="time-adj-btn minus" onClick={()=>adjustTime(-10)}>−10 min</button>
+                        <button className="time-adj-btn minus" onClick={()=>adjustTime(-5)}>−5 min</button>
+                        <button className="time-adj-btn minus" onClick={()=>adjustTime(-1)}>−1 min</button>
+                        <button className="time-adj-btn plus" onClick={()=>adjustTime(1)}>+1 min</button>
+                        <button className="time-adj-btn plus" onClick={()=>adjustTime(5)}>+5 min</button>
+                        <button className="time-adj-btn plus" onClick={()=>adjustTime(10)}>+10 min</button>
+                      </div>
+                    </>
+                  )}
                   {state.huntStatus === 'finished' && (
                     <>
                       <button className="big-btn" onClick={()=>huntAction('reopen')}>↺ Reopen hunt</button>

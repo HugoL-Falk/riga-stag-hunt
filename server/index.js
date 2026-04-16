@@ -379,6 +379,23 @@ app.post('/api/admin/hunt', (req, res) => {
     clearCountdownTimers();
   } else if (action === 'set_countdown') {
     if (countdown_minutes) setConfig('countdown_minutes', String(countdown_minutes));
+  } else if (action === 'adjust_time') {
+    // adjust_minutes is a signed delta: positive = extend, negative = reduce
+    const { adjust_minutes } = req.body;
+    if (adjust_minutes) {
+      const currentMins = parseInt(getConfig('countdown_minutes', '60'));
+      const newMins = Math.max(1, currentMins + parseInt(adjust_minutes));
+      setConfig('countdown_minutes', String(newMins));
+      // Reschedule countdown warnings from now
+      const startTime = parseInt(getConfig('hunt_start_time', '0'));
+      clearCountdownTimers();
+      scheduleCountdownMessages(startTime, newMins);
+      const delta = parseInt(adjust_minutes);
+      const sign = delta > 0 ? '+' : '';
+      const elapsed = Math.round((Date.now() - startTime) / 60000);
+      const remaining = Math.max(0, newMins - elapsed);
+      postSystemMessage(`⏱ Admin adjusted the hunt duration by ${sign}${delta} minutes. Time remaining: ~${remaining} min.`);
+    }
   } else if (action === 'enable_results') {
     setConfig('results_enabled', 'true');
     postSystemMessage('🏆 Results are now available! Check the Results tab!');

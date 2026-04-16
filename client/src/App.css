@@ -106,7 +106,7 @@
 .claimed-sub { font-size: 11px; color: #666; margin-top: 1px; }
 .bonus-summary { display: flex; align-items: center; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
 .bonus-dot { font-size: 11px; color: #ccc; font-weight: 600; padding: 1px 5px; border: 1px solid #eee; border-radius: 4px; transition: all 0.2s; }
-.bonus-dot.got { color: #1D9E75; border-color: #b8e0c9; background: #EAF3DE; }
+.bonus-dot.got { font-weight: 700; }
 .expand-icon { font-size: 10px; color: #aaa; margin-top: 4px; flex-shrink: 0; }
 .cc-expanded { padding: 0 12px 12px; border-top: 1px solid #f0ede8; }
 .cc-desc { font-size: 13px; color: #444; line-height: 1.6; background: #f8f6f2; border-radius: 8px; padding: 10px 11px; margin-bottom: 10px; }
@@ -349,3 +349,10 @@
 
 /* ── Results download button ── */
 .results-dl-btn { display: inline-block; font-size: 12px; padding: 7px 14px; border-radius: 8px; background: #1a1a1a; color: #fff; text-decoration: none; font-weight: 600; }
+/* ── Time adjust buttons ── */
+.time-adjust-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.time-adj-btn { flex: 1; min-width: 56px; padding: 8px 4px; border-radius: 8px; border: 1.5px solid; font-size: 12px; font-weight: 700; cursor: pointer; background: transparent; }
+.time-adj-btn.plus { border-color: #1D9E75; color: #1D9E75; }
+.time-adj-btn.plus:hover { background: #EAF3DE; }
+.time-adj-btn.minus { border-color: #D85A30; color: #D85A30; }
+.time-adj-btn.minus:hover { background: #FDE8E0; }

@@ -502,7 +502,11 @@ function ChallengeCard({ ch, state, team, highlighted, cardRef, onGoToMap, onToa
               </div>
             ):ch.bonus?.length>0&&(
               <div className="bonus-summary">
-                {ch.bonus.map(b=>{const bc=state.claims.find(c=>c.challenge_id===`${ch.id}_bonus_${b.id}`);return<span key={b.id} className={`bonus-dot ${bc?'got':''}`}>+{b.pts}</span>})}
+                {ch.bonus.map(b=>{
+                  const bc=state.claims.find(c=>c.challenge_id===`${ch.id}_bonus_${b.id}`)
+                  const bt=bc?state.teams.find(t=>t.id===bc.team_id):null
+                  return<span key={b.id} className={`bonus-dot ${bc?'got':''}`} style={bc&&bt?{color:bt.color,borderColor:bt.color+'55',background:bt.color+'15'}:{}}>{bc?`✓+${b.pts}`:`+${b.pts}`}</span>
+                })}
                 <span style={{fontSize:11,color:'#aaa'}}> bonus</span>
               </div>
             )}
