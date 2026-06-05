@@ -8,7 +8,7 @@ import { SERVER, STORAGE_KEY, TYPE_LABELS, CAT_LABELS, CHALLENGE_COORDS, isVideo
 import './App.css'
 
 const socket = io(SERVER, { transports: ['websocket', 'polling'] })
-const DEVICE_KEY = 'stag_device_id'
+const DEVICE_KEY = 'hunt_device_id'
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_KEY)
   if (!id) { id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_KEY, id) }
@@ -76,7 +76,7 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [messages, setMessages] = useState([])
   const [locations, setLocations] = useState({})
-  const [sharing, setSharing] = useState(() => { const s = localStorage.getItem('stag_sharing'); return s === null ? null : s === 'true' })
+  const [sharing, setSharing] = useState(() => { const s = localStorage.getItem('hunt_sharing'); return s === null ? null : s === 'true' })
   const [highlightChallenge, setHighlightChallenge] = useState(null)
   const [mapFocusId, setMapFocusId] = useState(null)
   const [claimToast, setClaimToast] = useState(null)
@@ -187,7 +187,7 @@ export default function App() {
       <div className="sticky-top">
         <header className="header">
           <div>
-            <div className="header-title">Riga Stag Hunt</div>
+            <div className="header-title">Riga City Hunt</div>
             <div className="header-sub" style={{ color: team.color }}>
               <span className="tdot" style={{ background: team.color }} /> {team.name} · {player.name}
             </div>
@@ -205,8 +205,8 @@ export default function App() {
           <div className="location-banner">
             <span>📍 Share your location on the map?</span>
             <div style={{ display:'flex', gap:6 }}>
-              <button className="loc-btn allow" onClick={() => { setSharing(true); localStorage.setItem('stag_sharing','true') }}>Yes</button>
-              <button className="loc-btn deny" onClick={() => { setSharing(false); localStorage.setItem('stag_sharing','false') }}>No thanks</button>
+              <button className="loc-btn allow" onClick={() => { setSharing(true); localStorage.setItem('hunt_sharing','true') }}>Yes</button>
+              <button className="loc-btn deny" onClick={() => { setSharing(false); localStorage.setItem('hunt_sharing','false') }}>No thanks</button>
             </div>
           </div>
         )}
@@ -356,7 +356,7 @@ function JoinScreen({ state, onJoin }) {
     <div className="join-screen">
       <div className="join-card">
         <div style={{fontSize:40,textAlign:'center'}}>🍺</div>
-        <h1 className="join-title">Riga Stag Hunt</h1>
+        <h1 className="join-title">Riga City Hunt</h1>
         <p className="join-sub">Welcome to a challenge hunt that will take you around Riga.</p>
 
         <label className="field-label">Your name</label>
@@ -837,11 +837,11 @@ const TUTORIAL_CHALLENGES = [
   },
   {
     id: 't4',
-    title: 'Name the stag',
+    title: 'Name the guest of honour',
     pts: 1,
-    desc: "What is the name of the groom-to-be (the stag)? Tests: answer with no photo.",
+    desc: "What is the name of the guest of honour? Tests: answer with no photo.",
     type: 'trivia',
-    answerField: { label: "What's the stag's name?", correct: null },
+    answerField: { label: "What's the guest of honour's name?", correct: null },
     answerOnly: true,
     bonus: []
   },
@@ -858,7 +858,7 @@ const TUTORIAL_CHALLENGES = [
   },
 ]
 
-const TUTORIAL_STORAGE = 'stag_tutorial_v1'
+const TUTORIAL_STORAGE = 'hunt_tutorial_v1'
 
 function TutorialView({ team, player }) {
   const [claims, setClaims] = useState(() => {

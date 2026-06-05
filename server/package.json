@@ -1,5 +1,5 @@
 {
-  "name": "stag-hunt-server",
+  "name": "city-hunt-server",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {

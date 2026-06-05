@@ -144,7 +144,7 @@ const CHALLENGES = [
   { id: 112, category: 'quick', title: 'Get a bartender to do a shot', hint: 'Any bar', type: 'shot', pts: 1, desc: 'Convince a bartender to do a shot with your team. Bartender must be visible with a glass raised.', bonus: [] },
   { id: 113, category: 'quick', title: 'Order in Latvian', hint: 'Any bar or café', type: 'shot', pts: 1, desc: 'One team member orders a round entirely in Latvian — no English allowed. Bartender must understand and fill the order.', video: true, answerField: { label: 'What did you order?' }, bonus: [] },
   { id: 114, category: 'quick', title: 'Invent a cocktail', hint: 'Any bar', type: 'shot', pts: 1, desc: "Ask the bartender to make you a cocktail they have personally invented or named. Photo of the drink with the bartender confirming it's their creation.", answerField: { label: 'What was the cocktail called?' }, bonus: [] },
-  { id: 115, category: 'quick', title: 'Chug race', hint: 'Any bar', type: 'shot', pts: 1, desc: 'Two members from your team race to finish a beer. Stag must be one of the racers.', video: true, bonus: [] },
+  { id: 115, category: 'quick', title: 'Chug race', hint: 'Any bar', type: 'shot', pts: 1, desc: 'Two members from your team race to finish a beer. The guest of honour must be one of the racers.', video: true, bonus: [] },
   { id: 116, category: 'quick', title: 'Worst beer face', hint: 'Any bar', type: 'photo', pts: 1, desc: 'Everyone downs a shot of something strong and the whole team pulls their best disgusted face at exactly the same moment.', bonus: [] },
   { id: 117, category: 'quick', title: 'Find a Soviet-era mosaic', hint: 'Look on building facades', type: 'photo', pts: 1, desc: 'Find a mosaic from the Soviet era. Photo of the team in front of it.', bonus: [] },
 
@@ -171,10 +171,10 @@ const CHALLENGES = [
   { id: 303, category: 'hard', title: 'Get a bicycle ride', hint: 'Anywhere', type: 'photo', pts: 3, desc: 'Get a photo of someone in your team being carried or riding with someone on a bicycle while they are actually riding.', bonus: [] },
   { id: 304, category: 'hard', title: 'Spot a Soviet Lada', hint: 'Look around Old Town and surroundings', type: 'photo', pts: 3, desc: 'Find a Soviet-era Lada car still in use. Get a photo with the whole team.', bonus: [] },
   {
-    id: 305, category: 'hard', title: 'Convince a bar to give the stag a free drink', hint: 'Any bar', type: 'shot', pts: 3,
-    desc: "Convince a bar to give the stag a complimentary drink by any means necessary — tell them it's his last day of freedom, perform, beg, whatever it takes.", video: true,
+    id: 305, category: 'hard', title: 'Convince a bar to give the guest of honour a free drink', hint: 'Any bar', type: 'shot', pts: 3,
+    desc: "Convince a bar to give the guest of honour a complimentary drink by any means necessary — tell them it's their last night of freedom, perform, beg, whatever it takes.", video: true,
     bonus: [
-      { id: '305a', pts: 2, text: 'The bar gives the entire team a free round, not just the stag.' }
+      { id: '305a', pts: 2, text: 'The bar gives the entire team a free round, not just the guest of honour.' }
     ]
   },
   { id: 306, category: 'hard', title: 'Locate the hidden courtyard', hint: 'Look for archways and unmarked passageways', type: 'photo', pts: 3, desc: 'Old Town has several hidden courtyards accessible through archways and passageways completely invisible from the street. Find one, photograph the team inside it, and note the address you entered from.', answerField: { label: 'What address did you enter from?' }, bonus: [] },

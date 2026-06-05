@@ -1,5 +1,5 @@
 export const SERVER = import.meta.env.VITE_SERVER_URL || ''
-export const STORAGE_KEY = 'stag_identity_v3'
+export const STORAGE_KEY = 'hunt_identity_v4'
 export const TYPE_LABELS = { photo: 'Photo', shot: 'Drinks', task: 'Task', trivia: 'Trivia', social: 'Social' }
 export const CAT_LABELS = { landmark: 'Landmark', quick: 'Quick (1pt)', medium: 'Medium (2pt)', hard: 'Hard (3pt)' }
 

@@ -320,7 +320,7 @@ async function startServer() {
     const teamMap = {};
     state.teams.forEach(t => { teamMap[t.id] = t.name; });
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="riga-stag-hunt.zip"');
+    res.setHeader('Content-Disposition', 'attachment; filename="riga-city-hunt.zip"');
     const arc = archiver('zip', { zlib: { level: 6 } });
     arc.pipe(res);
     allClaims.forEach(c => {
@@ -338,7 +338,7 @@ async function startServer() {
       arc.file(fp, { name: `chat/${tn}_${m.sent_at}${path.extname(fn)}` });
     });
     const allMsgs = prepare('SELECT * FROM messages ORDER BY sent_at ASC').all();
-    let chatLog = `RIGA STAG HUNT — CHAT LOG\n${'='.repeat(40)}\n\n`;
+    let chatLog = `RIGA CITY HUNT — CHAT LOG\n${'='.repeat(40)}\n\n`;
     allMsgs.forEach(m => {
       const time = new Date((m.sent_at||0)*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       chatLog += m.is_system ? `[${time}] *** ${m.text} ***\n` : `[${time}] ${m.sender_name} (${m.team_name||'?'}): ${m.text}${m.image_url?' [📷 image]':''}\n`;
@@ -358,7 +358,7 @@ async function startServer() {
       });
       const trailsJson = JSON.stringify(Object.values(byPlayer));
       const mapHtml = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Riga Stag Hunt — Movement Map</title>
+<html><head><meta charset="UTF-8"><title>Riga City Hunt — Movement Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 <style>body{margin:0}#map{height:100vh}</style>
@@ -539,7 +539,7 @@ trails.forEach(p => {
   }
 
   const PORT = process.env.PORT || 3001;
-  server.listen(PORT, () => console.log(`Stag Hunt server running on port ${PORT}`));
+  server.listen(PORT, () => console.log(`Riga City Hunt server running on port ${PORT}`));
 }
 
 startServer().catch(err => { console.error('Failed to start:', err); process.exit(1); });

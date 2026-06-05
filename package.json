@@ -1,5 +1,5 @@
 {
-  "name": "riga-stag-hunt",
+  "name": "riga-city-hunt",
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
